@@ -38,6 +38,10 @@ var productSchema = new mongoose.Schema(
           default: true,
           required:false,
         },
+        postedby: { 
+          type: mongoose.Schema.Types.ObjectId, 
+          ref: "User" 
+        },
       },
     ],
     ratings: [

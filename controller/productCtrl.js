@@ -115,45 +115,61 @@ const addToWishlist = asyncHandler(async (req, res) => {
 
   try {
     const user = await User.findById(_id);
-    const added = user.wishlist.find((id) => id.toString() === prodId);
+    const added = user.wishlist && user.wishlist.find((id) => id.toString() === prodId);
+    const product = await Product.findById(prodId);
 
-    if (added) {
-      let updatedUser = await User.findByIdAndUpdate(
-        _id,
-        { $pull: { wishlist: prodId } },
-        { new: true }
+    const isTurnAvailable = turns.every((turn) => {
+      const matchingTurn = product.turns.find(
+        (t) => t.date.toString() === new Date(turn.date).toString() && t.time === turn.time
       );
-      res.json(updatedUser);
-    } else {
-      let updatedUser = await User.findByIdAndUpdate(
-        _id,
-        { $push: { wishlist: prodId } },
-        { new: true }
-      );
-      await Product.findByIdAndUpdate(
-        prodId,
-        {
-          $set: {
-            "turns.$[element].disponible": false,
-          },
-        },
-        {
-          arrayFilters: [
-            {
-              "element.date": { $in: turns.map((turn) => new Date(turn.date)) },
-              "element.time": { $in: turns.map((turn) => turn.time) },
+
+      return matchingTurn && matchingTurn.disponible;
+    });
+
+    if (isTurnAvailable) {
+      if (added) {
+        let updatedUser = await User.findByIdAndUpdate(
+          _id,
+          { $pull: { wishlist: prodId } },
+          { new: true }
+        );
+        res.json(updatedUser);
+      } else {
+        let updatedUser = await User.findByIdAndUpdate(
+          _id,
+          { $push: { wishlist: prodId } },
+          { new: true }
+        );
+
+        await Product.findByIdAndUpdate(
+          prodId,
+          {
+            $set: {
+              "turns.$[element].disponible": false,
             },
-          ],
-          new: true,
-        }
-      );
+          },
+          {
+            arrayFilters: [
+              {
+                "element.date": { $in: turns.map((turn) => new Date(turn.date)) },
+                "element.time": { $in: turns.map((turn) => turn.time) },
+              },
+            ],
+            new: true
+          }
+        );
 
-      res.json(updatedUser);
+        res.json(updatedUser);
+      }
+    } else {
+      res.status(400).json({ error: 'Este turno ha sido seleccionado.' });
     }
   } catch (error) {
     throw new Error(error);
   }
 });
+
+
 
 module.exports = {
   createProduct,
