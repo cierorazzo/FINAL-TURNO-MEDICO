@@ -65,7 +65,7 @@ const getallUser = asyncHandler(async (req, res) => {
 });
 const getaUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  validateMongoDbId();
+  validateMongoDbId(id);
   try {
     const getaUser = await User.findById(id);
     res.json({
@@ -77,8 +77,8 @@ const getaUser = asyncHandler(async (req, res) => {
 });
 const deleteaUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  validateMongoDbId();
   try {
+    validateMongoDbId(id);
     const deleteUser = await User.findByIdAndDelete(id);
     res.json({
       deleteUser,

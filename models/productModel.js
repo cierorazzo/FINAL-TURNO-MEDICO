@@ -1,7 +1,7 @@
 const mongoose = require("mongoose"); // Erase if already required
 
 // Declare the Schema of the Mongo model
-var medicoSchema = new mongoose.Schema(
+var productSchema = new mongoose.Schema(
   {
     title: {
       type: String,
@@ -14,34 +14,35 @@ var medicoSchema = new mongoose.Schema(
       unique: true,
       lowercase: true,
     },
-    description: {
+    specialization: {
       type: String,
       required: true,
     },
-    price: {
-      type: Number,
-      required: true,
-    },
-    category: {
+    name: {
       type: String,
       required: true,
     },
-    brand: {
+    license:{
       type: String,
-      required: true,
-    },
-    quantity:{
-      type: Number,
       required:true,
     },
-    sold: {
-      type: Number,
-      default: 0,
-    },
-    color: {
-      type: String,
-      required: true
-    },
+    turns: [
+      {
+        date: {
+          type: Date,
+          required: true,
+        },
+        time: {
+          type: String,
+          required: true,
+        },
+        disponible: {
+          type: Boolean,
+          default: true,
+          required:false,
+        },
+      },
+    ],
     ratings: [
       {
         star: Number,
@@ -53,4 +54,4 @@ var medicoSchema = new mongoose.Schema(
 );
 
 //Export the model
-module.exports = mongoose.model("Medico", medicoSchema);
+module.exports = mongoose.model("Product", productSchema);
