@@ -1,6 +1,8 @@
 const Product = require("../models/productModel");
+const User = require("../models/userModel");
 const asyncHandler = require("express-async-handler");
 const slugify = require("slugify");
+const validateMongodbId = require("../utils/validateMongodbId");
 
 const createProduct = asyncHandler(async (req, res) => {
   try {
@@ -12,13 +14,15 @@ const createProduct = asyncHandler(async (req, res) => {
   } catch (error) {
     if (error.keyPattern.license) {
       res.status(400).json({ error: "La licencia debe ser única" });
-    } else{
-    res.status(500).json({ error: "Error al crear el médico, duplicado" });
+    } else {
+      res.status(500).json({ error: "Error al crear el médico, duplicado" });
+    }
   }
-}});
+});
 
 const updateProduct = asyncHandler(async (req, res) => {
   const productId = req.params.id;
+  validateMongodbId(productId);
   try {
     if (req.body.name) {
       req.body.slug = slugify(req.body.name);
@@ -40,6 +44,7 @@ const updateProduct = asyncHandler(async (req, res) => {
 });
 const deleteProduct = asyncHandler(async (req, res) => {
   const productId = req.params.id;
+  validateMongodbId(productId);
   try {
     const deletedProduct = await Product.findByIdAndDelete(
       { _id: productId },
@@ -89,17 +94,62 @@ const getAllProduct = asyncHandler(async (req, res) => {
       query = query.select("-__v");
     }
     // Paginacion
-    const page = req.query.page
-    const limit = req.query.limit
-    const skip = (page - 1) * limit
-    query = query.skip(skip).limit(limit)
-    if(req.query.page){
-      const productCount = await Product.countDocuments()
-      if(skip>=productCount) throw new Error("Esta página no existe.")
+    const page = req.query.page;
+    const limit = req.query.limit;
+    const skip = (page - 1) * limit;
+    query = query.skip(skip).limit(limit);
+    if (req.query.page) {
+      const productCount = await Product.countDocuments();
+      if (skip >= productCount) throw new Error("Esta página no existe.");
     }
-    console.log(page, limit, skip)
+    console.log(page, limit, skip);
     const product = await query;
     res.json(product);
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+const addToWishlist = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  const { prodId, turns } = req.body;
+
+  try {
+    const user = await User.findById(_id);
+    const added = user.wishlist.find((id) => id.toString() === prodId);
+
+    if (added) {
+      let updatedUser = await User.findByIdAndUpdate(
+        _id,
+        { $pull: { wishlist: prodId } },
+        { new: true }
+      );
+      res.json(updatedUser);
+    } else {
+      let updatedUser = await User.findByIdAndUpdate(
+        _id,
+        { $push: { wishlist: prodId } },
+        { new: true }
+      );
+      await Product.findByIdAndUpdate(
+        prodId,
+        {
+          $set: {
+            "turns.$[element].disponible": false,
+          },
+        },
+        {
+          arrayFilters: [
+            {
+              "element.date": { $in: turns.map((turn) => new Date(turn.date)) },
+              "element.time": { $in: turns.map((turn) => turn.time) },
+            },
+          ],
+          new: true,
+        }
+      );
+
+      res.json(updatedUser);
+    }
   } catch (error) {
     throw new Error(error);
   }
@@ -111,4 +161,5 @@ module.exports = {
   deleteProduct,
   getaProduct,
   getAllProduct,
+  addToWishlist,
 };
