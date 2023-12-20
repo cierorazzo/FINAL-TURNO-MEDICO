@@ -186,52 +186,51 @@ const addToWishlist = asyncHandler(async (req, res) => {
     throw new Error(error);
   }
 });
-
-
 const cancelTurns = asyncHandler(async (req, res) => {
   const { _id } = req.user;
-  const { turnsToCancel } = req.body;
+  const { prodId, turns } = req.body;
 
   try {
     const user = await User.findById(_id);
-    const turnsInWishlist = turnsToCancel.every((turn) =>
-      user.wishlist && user.wishlist.includes(turn.toString())
-    );
-
-    if (turnsInWishlist) {
-      let updatedUser = await User.findByIdAndUpdate(
-        _id,
-        { $pull: { wishlist: { $in: turnsToCancel } } },
-        { new: true }
-      );
-      const updateResult = await Product.updateMany(
-        {
-          "turns._id": { $in: turnsToCancel.map((turnId) => mongoose.Types.ObjectId(turnId)) }
-        },
-        {
-          $set: {
-            "turns.$[element].disponible": true,
-          },
-        },
-        {
-          arrayFilters: [
-            {
-              "element._id": { $in: turnsToCancel.map((turnId) => mongoose.Types.ObjectId(turnId)) },
-            },
-          ],
-          new: true
-        }
-      );
-
-      res.json(updatedUser);
-    } else {
-      res.status(400).json({ error: 'Al menos uno de los turnos que deseas cancelar no está en la lista de tus turnos.' });
+    const product = await Product.findById(prodId);
+    const userWishlistItem = user.wishlist.find(item => item.prodId.toString() === prodId);
+    if (!userWishlistItem) {
+      return res.status(400).json({ error: 'El producto no está en la lista de deseos del usuario.' });
     }
-  } catch (error) {
-    throw new Error(error);
-  }
-});
+  const canceledTurns = turns.map(turn => turn.id);
+  const userTurnsToCancel = userWishlistItem.turns.filter(turn => canceledTurns.includes(turn.toString()));
 
+  if (userTurnsToCancel.length !== canceledTurns.length) {
+    return res.status(400).json({ error: 'Alguno de los turnos no pertenece al usuario o no está en la lista de deseos.' });
+  }
+  await User.findByIdAndUpdate(
+    _id,
+    { $pull: { 'wishlist.$[item].turns': { $in: canceledTurns } } },
+    { arrayFilters: [{ 'item.prodId': prodId }], new: true }
+  );
+  await Product.findByIdAndUpdate(
+    prodId,
+    {
+      $set: {
+        "turns.$[element].disponible": true,
+      },
+    },
+    {
+      arrayFilters: [
+        {
+          "element._id": { $in: canceledTurns },
+          "element.disponible": false,
+        },
+      ],
+      new: true,
+    }
+  );
+
+  res.json({ message: 'Turnos cancelados exitosamente.' });
+} catch (error) {
+  res.status(500).json({ error: 'Error al cancelar los turnos.' });
+}
+});
 
 module.exports = {
   createProduct,

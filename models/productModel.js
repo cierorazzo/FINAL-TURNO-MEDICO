@@ -42,6 +42,12 @@ var productSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId, 
           ref: "User" 
         },
+        cancellations: [
+          {
+            cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+            cancelledAt: { type: Date, default: Date.now },
+          },
+        ],
       },
     ],
     ratings: [
