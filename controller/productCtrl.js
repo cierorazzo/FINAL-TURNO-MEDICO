@@ -4,20 +4,24 @@ const slugify = require("slugify");
 
 const createProduct = asyncHandler(async (req, res) => {
   try {
-    if (req.body.title) {
-      req.body.slug = slugify(req.body.title);
+    if (req.body.name) {
+      req.body.slug = slugify(req.body.name);
     }
     const newProduct = await Product.create(req.body);
     res.json(newProduct);
   } catch (error) {
-    res.status(500).json({ error: "Error al crear el producto, duplicado" });
+    if (error.keyPattern.license) {
+      res.status(400).json({ error: "La licencia debe ser única" });
+    } else{
+    res.status(500).json({ error: "Error al crear el médico, duplicado" });
   }
-});
+}});
+
 const updateProduct = asyncHandler(async (req, res) => {
   const productId = req.params.id;
   try {
-    if (req.body.title) {
-      req.body.slug = slugify(req.body.title);
+    if (req.body.name) {
+      req.body.slug = slugify(req.body.name);
     }
     const updatedProduct = await Product.findByIdAndUpdate(
       { _id: productId },
@@ -27,7 +31,7 @@ const updateProduct = asyncHandler(async (req, res) => {
       }
     );
     if (!updatedProduct) {
-      return res.status(404).json({ error: "Producto no encontrado" });
+      return res.status(404).json({ error: "Médico no encontrado" });
     }
     res.json(updateProduct);
   } catch (error) {
@@ -37,9 +41,6 @@ const updateProduct = asyncHandler(async (req, res) => {
 const deleteProduct = asyncHandler(async (req, res) => {
   const productId = req.params.id;
   try {
-    if (req.body.title) {
-      req.body.slug = slugify(req.body.title);
-    }
     const deletedProduct = await Product.findByIdAndDelete(
       { _id: productId },
       req.body,
@@ -48,9 +49,9 @@ const deleteProduct = asyncHandler(async (req, res) => {
       }
     );
     if (!deletedProduct) {
-      return res.status(404).json({ error: "Producto no encontrado" });
+      return res.status(404).json({ error: "Médico no encontrado" });
     }
-    res.json(updateProduct);
+    res.json(deletedProduct);
   } catch (error) {
     throw new Error(error);
   }
