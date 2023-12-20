@@ -9,14 +9,15 @@ const createProduct = asyncHandler(async (req, res) => {
     if (req.body.name) {
       req.body.slug = slugify(req.body.name);
     }
+    const existingProduct = await Product.findOne({ license: req.body.license });
+    
+    if (existingProduct) {
+      return res.status(400).json({ error: "La licencia debe ser única" });
+    }
     const newProduct = await Product.create(req.body);
     res.json(newProduct);
   } catch (error) {
-    if (error.keyPattern.license) {
-      res.status(400).json({ error: "La licencia debe ser única" });
-    } else {
-      res.status(500).json({ error: "Error al crear el médico, duplicado" });
-    }
+    res.status(500).json({ error: "Error al crear el médico" });
   }
 });
 
@@ -130,9 +131,27 @@ const addToWishlist = asyncHandler(async (req, res) => {
       if (added) {
         let updatedUser = await User.findByIdAndUpdate(
           _id,
-          { $pull: { wishlist: { prodId } } },
-          { new: true }
+          { $push: { 'wishlist.$[item].turns': { $each: turns.map(turn => turn.id) } } },
+          { arrayFilters: [{ 'item.prodId': prodId }], new: true }
         );
+        await Product.findByIdAndUpdate(
+          prodId,
+          {
+            $set: {
+              "turns.$[element].disponible": false,
+            },
+          },
+          {
+            arrayFilters: [
+              {
+                "element._id": { $in: turns.map(turn => turn.id) },
+                "element.disponible": true,
+              },
+            ],
+            new: true
+          }
+        );
+
         res.json(updatedUser);
       } else {
         let updatedUser = await User.findByIdAndUpdate(
@@ -140,7 +159,6 @@ const addToWishlist = asyncHandler(async (req, res) => {
           { $push: { wishlist: { prodId, turns: turns.map(turn => turn.id) } } },
           { new: true }
         );
-
         await Product.findByIdAndUpdate(
           prodId,
           {
