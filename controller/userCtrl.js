@@ -134,6 +134,7 @@ const logout = asyncHandler(async (req, res) => {
   });
   res.sendStatus(204);
 });
+
 module.exports = {
   createUser,
   loginUserCtrl,

@@ -3,6 +3,7 @@ const User = require("../models/userModel");
 const asyncHandler = require("express-async-handler");
 const slugify = require("slugify");
 const validateMongodbId = require("../utils/validateMongodbId");
+const mongoose = require('mongoose');
 
 const createProduct = asyncHandler(async (req, res) => {
   try {
@@ -202,99 +203,68 @@ const addToWishlist = asyncHandler(async (req, res) => {
     throw new Error(error);
   }
 });
-const cancelTurns = asyncHandler(async (req, res) => {
+const cancelFromWishlist = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { prodId, turns } = req.body;
 
   try {
     const user = await User.findById(_id);
-    const product = await Product.findById(prodId);
-
-    if (!user || !product) {
-      return res.status(400).json({ error: "Usuario o producto no encontrado." });
-    }
-
-    const canceledTurns = turns.map((turn) => turn.id);
-    await Product.findByIdAndUpdate(
-      prodId,
-      {
-        $set: {
-          "turns.$[element].disponible": true,
-        },
-      },
-      {
-        arrayFilters: [
-          {
-            "element._id": { $in: canceledTurns },
-            "element.disponible": false,
-          },
-        ],
-        new: true,
-      }
-    );
-    await User.findByIdAndUpdate(
-      _id,
-      { $pull: { "wishlist.$[item].turns": { $in: canceledTurns } } },
-      { arrayFilters: [{ "item.prodId": prodId }], new: true }
-    );
-    user.cancellationHistory = user.cancellationHistory || [];
-    user.cancellationHistory.push({
-      canceledTurns,
-      canceledAt: new Date(),
-    });
-
-    await user.save();
-
-    res.json({ message: "Turnos cancelados exitosamente." });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error al cancelar los turnos." });
-  }
-});
-const userCancelledTurns = asyncHandler(async (req, res) => {
-  const { _id } = req.user;
-  validateMongodbId(_id);
-
-  try {
-    const user = await User.findById(_id).populate({
-      path: 'wishlist.prodId',
-      populate: {
-        path: 'turns.cancellations.cancelledBy',
-        model: 'User',
-        select: 'firstname', // selecciona solo el campo necesario
-      },
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: 'Usuario no encontrado' });
-    }
-
-    const cancelHistory = [];
-
-    user.wishlist.forEach((wishlistItem) => {
-      wishlistItem.turns.forEach((turn) => {
-        if (turn.cancellations && turn.cancellations.length > 0) {
-          const cancellationInfo = {
-            productId: wishlistItem.prodId._id,
-            productName: wishlistItem.prodId.name,
-            turnId: turn._id,
-            cancelledBy: turn.cancellations[0].cancelledBy.firstname,
-            cancelledAt: turn.cancellations[0].cancelledAt,
-          };
-
-          cancelHistory.push(cancellationInfo);
+    const wishlistItem = user.wishlist && user.wishlist.find((item) => item.prodId.toString() === prodId);
+    if (wishlistItem) {
+      const canceledTurns = [];
+      for (const turnId of turns) {
+        const turnObjectId = new mongoose.Types.ObjectId(turnId);
+        const turnIndex = wishlistItem.turns.findIndex(turn => turn.equals(turnObjectId));
+      
+        if (turnIndex !== -1) {
+          wishlistItem.turns.splice(turnIndex, 1);
+          canceledTurns.push(turnObjectId);
         }
-      });
-    });
+      }
 
-    res.json(cancelHistory);
+      if (canceledTurns.length > 0) {
+        await User.findByIdAndUpdate(
+          _id,
+          {
+            $push: {
+              cancellationHistory: { canceledTurns, canceledAt: Date.now() },
+            },
+            $set: {
+              "wishlist.$[item].turns": wishlistItem.turns,
+            },
+          },
+          { arrayFilters: [{ "item.prodId": prodId }], new: true }
+        );
+        await Product.findByIdAndUpdate(
+          prodId,
+          {
+            $set: {
+              "turns.$[element].disponible": true,
+            },
+          },
+          {
+            arrayFilters: [
+              {
+                "element._id": { $in: canceledTurns },
+                "element.disponible": false,
+              },
+            ],
+            new: true
+          }
+        );
+
+        res.json({ message: "Turnos cancelados con éxito." });
+      } else {
+        res.status(400).json({ error: "Ningún turno encontrado en la wishlist." });
+      }
+    } else {
+      res.status(400).json({ error: "Producto no encontrado en la wishlist." });
+    }
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Error al obtener el historial de cancelaciones.' });
+    res.status(500).json({ error: "Error interno del servidor." });
   }
 });
-
-
 
 module.exports = {
   createProduct,
@@ -303,6 +273,5 @@ module.exports = {
   getaProduct,
   getAllProduct,
   addToWishlist,
-  cancelTurns,
-  userCancelledTurns,
+  cancelFromWishlist
 };
