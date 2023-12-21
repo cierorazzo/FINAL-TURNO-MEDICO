@@ -9,8 +9,10 @@ const createProduct = asyncHandler(async (req, res) => {
     if (req.body.name) {
       req.body.slug = slugify(req.body.name);
     }
-    const existingProduct = await Product.findOne({ license: req.body.license });
-    
+    const existingProduct = await Product.findOne({
+      license: req.body.license,
+    });
+
     if (existingProduct) {
       return res.status(400).json({ error: "La licencia debe ser única" });
     }
@@ -116,7 +118,9 @@ const addToWishlist = asyncHandler(async (req, res) => {
 
   try {
     const user = await User.findById(_id);
-    const added = user.wishlist && user.wishlist.find((item) => item.prodId.toString() === prodId);
+    const added =
+      user.wishlist &&
+      user.wishlist.find((item) => item.prodId.toString() === prodId);
     const product = await Product.findById(prodId);
 
     const areAllTurnsAvailable = turns.every((turn) => {
@@ -131,8 +135,12 @@ const addToWishlist = asyncHandler(async (req, res) => {
       if (added) {
         let updatedUser = await User.findByIdAndUpdate(
           _id,
-          { $push: { 'wishlist.$[item].turns': { $each: turns.map(turn => turn.id) } } },
-          { arrayFilters: [{ 'item.prodId': prodId }], new: true }
+          {
+            $push: {
+              "wishlist.$[item].turns": { $each: turns.map((turn) => turn.id) },
+            },
+          },
+          { arrayFilters: [{ "item.prodId": prodId }], new: true }
         );
         await Product.findByIdAndUpdate(
           prodId,
@@ -144,11 +152,11 @@ const addToWishlist = asyncHandler(async (req, res) => {
           {
             arrayFilters: [
               {
-                "element._id": { $in: turns.map(turn => turn.id) },
+                "element._id": { $in: turns.map((turn) => turn.id) },
                 "element.disponible": true,
               },
             ],
-            new: true
+            new: true,
           }
         );
 
@@ -156,7 +164,11 @@ const addToWishlist = asyncHandler(async (req, res) => {
       } else {
         let updatedUser = await User.findByIdAndUpdate(
           _id,
-          { $push: { wishlist: { prodId, turns: turns.map(turn => turn.id) } } },
+          {
+            $push: {
+              wishlist: { prodId, turns: turns.map((turn) => turn.id) },
+            },
+          },
           { new: true }
         );
         await Product.findByIdAndUpdate(
@@ -169,18 +181,22 @@ const addToWishlist = asyncHandler(async (req, res) => {
           {
             arrayFilters: [
               {
-                "element._id": { $in: turns.map(turn => turn.id) },
+                "element._id": { $in: turns.map((turn) => turn.id) },
                 "element.disponible": true,
               },
             ],
-            new: true
+            new: true,
           }
         );
 
         res.json(updatedUser);
       }
     } else {
-      res.status(400).json({ error: 'Alguno de los turnos seleccionados ya ha sido tomado.' });
+      res
+        .status(400)
+        .json({
+          error: "Alguno de los turnos seleccionados ya ha sido tomado.",
+        });
     }
   } catch (error) {
     throw new Error(error);
@@ -193,44 +209,92 @@ const cancelTurns = asyncHandler(async (req, res) => {
   try {
     const user = await User.findById(_id);
     const product = await Product.findById(prodId);
-    const userWishlistItem = user.wishlist.find(item => item.prodId.toString() === prodId);
-    if (!userWishlistItem) {
-      return res.status(400).json({ error: 'El producto no está en la lista de deseos del usuario.' });
-    }
-  const canceledTurns = turns.map(turn => turn.id);
-  const userTurnsToCancel = userWishlistItem.turns.filter(turn => canceledTurns.includes(turn.toString()));
 
-  if (userTurnsToCancel.length !== canceledTurns.length) {
-    return res.status(400).json({ error: 'Alguno de los turnos no pertenece al usuario o no está en la lista de deseos.' });
-  }
-  await User.findByIdAndUpdate(
-    _id,
-    { $pull: { 'wishlist.$[item].turns': { $in: canceledTurns } } },
-    { arrayFilters: [{ 'item.prodId': prodId }], new: true }
-  );
-  await Product.findByIdAndUpdate(
-    prodId,
-    {
-      $set: {
-        "turns.$[element].disponible": true,
-      },
-    },
-    {
-      arrayFilters: [
-        {
-          "element._id": { $in: canceledTurns },
-          "element.disponible": false,
+    if (!user || !product) {
+      return res.status(400).json({ error: "Usuario o producto no encontrado." });
+    }
+
+    const canceledTurns = turns.map((turn) => turn.id);
+    await Product.findByIdAndUpdate(
+      prodId,
+      {
+        $set: {
+          "turns.$[element].disponible": true,
         },
-      ],
-      new: true,
-    }
-  );
+      },
+      {
+        arrayFilters: [
+          {
+            "element._id": { $in: canceledTurns },
+            "element.disponible": false,
+          },
+        ],
+        new: true,
+      }
+    );
+    await User.findByIdAndUpdate(
+      _id,
+      { $pull: { "wishlist.$[item].turns": { $in: canceledTurns } } },
+      { arrayFilters: [{ "item.prodId": prodId }], new: true }
+    );
+    user.cancellationHistory = user.cancellationHistory || [];
+    user.cancellationHistory.push({
+      canceledTurns,
+      canceledAt: new Date(),
+    });
 
-  res.json({ message: 'Turnos cancelados exitosamente.' });
-} catch (error) {
-  res.status(500).json({ error: 'Error al cancelar los turnos.' });
-}
+    await user.save();
+
+    res.json({ message: "Turnos cancelados exitosamente." });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al cancelar los turnos." });
+  }
 });
+const userCancelledTurns = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  validateMongodbId(_id);
+
+  try {
+    const user = await User.findById(_id).populate({
+      path: 'wishlist.prodId',
+      populate: {
+        path: 'turns.cancellations.cancelledBy',
+        model: 'User',
+        select: 'firstname', // selecciona solo el campo necesario
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const cancelHistory = [];
+
+    user.wishlist.forEach((wishlistItem) => {
+      wishlistItem.turns.forEach((turn) => {
+        if (turn.cancellations && turn.cancellations.length > 0) {
+          const cancellationInfo = {
+            productId: wishlistItem.prodId._id,
+            productName: wishlistItem.prodId.name,
+            turnId: turn._id,
+            cancelledBy: turn.cancellations[0].cancelledBy.firstname,
+            cancelledAt: turn.cancellations[0].cancelledAt,
+          };
+
+          cancelHistory.push(cancellationInfo);
+        }
+      });
+    });
+
+    res.json(cancelHistory);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener el historial de cancelaciones.' });
+  }
+});
+
+
 
 module.exports = {
   createProduct,
@@ -239,5 +303,6 @@ module.exports = {
   getaProduct,
   getAllProduct,
   addToWishlist,
-  cancelTurns
+  cancelTurns,
+  userCancelledTurns,
 };

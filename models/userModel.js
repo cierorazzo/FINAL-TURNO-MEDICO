@@ -40,6 +40,13 @@ var userSchema = new mongoose.Schema(
         prodId: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
         turns: [{ type: mongoose.Schema.Types.ObjectId, ref: "Turn" }],
       },
+      
+    ],
+    cancellationHistory: [
+      {
+        canceledTurns: [{ type: mongoose.Schema.Types.ObjectId, ref: "Turn" }],
+        canceledAt: { type: Date, default: Date.now },
+      },
     ],
     refreshToken: {
         type: String,
