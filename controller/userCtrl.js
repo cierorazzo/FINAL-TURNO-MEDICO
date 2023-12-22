@@ -1,10 +1,13 @@
-const mongoose = require("mongoose")
+const nodemailer = require("nodemailer");
+const mongoose = require("mongoose");
 const User = require("../models/userModel");
 const asyncHandler = require("express-async-handler");
 const { generateToken } = require("../config/jwtToken.js");
 const validateMongoDbId = require("../utils/validateMongodbId.js");
 const { generateRefreshToken } = require("../config/refreshtoken.js");
+const crypto = require("crypto")
 const jwt = require("jsonwebtoken");
+
 
 
 const createUser = asyncHandler(async (req, res) => {
@@ -35,7 +38,7 @@ const updatedUser = asyncHandler(async (req, res) => {
     );
     res.json(updatedUser);
   } catch (error) {
-    next(error)
+    next(error);
   }
 });
 const handleRefreshToken = asyncHandler(async (req, res) => {
@@ -54,7 +57,7 @@ const handleRefreshToken = asyncHandler(async (req, res) => {
       res.json({ accessToken });
     });
   } catch (error) {
-    next(error)
+    next(error);
   }
 });
 const getallUser = asyncHandler(async (req, res) => {
@@ -68,18 +71,18 @@ const getallUser = asyncHandler(async (req, res) => {
 const getaUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
   try {
-    validateMongoDbId(id)
+    validateMongoDbId(id);
     const getaUser = await User.findById(id);
-    
+
     if (!getaUser) {
-      return res.status(404).json({ error: 'Usuario no encontrado.' });
+      return res.status(404).json({ error: "Usuario no encontrado." });
     }
 
     res.json({
       getaUser,
     });
   } catch (error) {
-    console.error(error); 
+    console.error(error);
     res.status(500).json({ error: "Error interno del servidor." });
   }
 });
@@ -142,7 +145,73 @@ const logout = asyncHandler(async (req, res) => {
   });
   res.sendStatus(204);
 });
+const updatePassword = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  const { password } = req.body;
+  validateMongoDbId(_id);
+  const user = await User.findById(_id);
 
+  if (password) {
+    user.password = password;
+    user.passwordChangedAt = new Date();
+    await user.createPasswordResetToken();
+
+    const updatedUser = await user.save();
+    res.json(updatedUser);
+  } else {
+    res.json(user);
+  }
+});
+const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    throw new Error("Usuario no encontrado.");
+  }
+
+  const resetToken = user.createPasswordResetToken();
+  await user.save();
+
+  const transporter = nodemailer.createTransport({
+    service: "Gmail",
+    auth: {
+      user: "nachof5cjs@gmail.com",
+      pass: "ennu gwhu cntr imki", 
+    },
+  });
+  const mailOptions = {
+    from: "nachof5cjs@gmail.com",
+    to: user.email,
+    subject: "Restablecimiento de contraseña",
+    html: `Haga clic en el siguiente enlace para restablecer su contraseña: <a href="http://localhost:3050/api/user/reset-password/${resetToken}">Restablecer contraseña</a>`,
+  };
+  
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error("Error sending email:", error);
+      throw new Error("Error al enviar el correo electrónico de restablecimiento de contraseña.");
+    } else {
+      console.log("Email sent:", info.response);
+      res.json({ message: "Se ha enviado un enlace de restablecimiento a su correo electrónico." });
+    }
+  });
+});
+const resetPassword = asyncHandler(async(req, res)=> {
+  const {password} = req.body
+  const {token} = req.params
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex")
+  const user = await User.findOne({
+    passwordResetToken: hashedToken,
+    passwordResetExpires: { $gt: Date.now()}
+  })
+  if (!user) throw new Error("Token expirado, por favor intentalo nuevamente.")
+  user.password = password
+  user.passwordResetToken = undefined
+  user.passwordResetExpires = undefined
+  await user.save()
+  res.json(user)
+})
 module.exports = {
   createUser,
   loginUserCtrl,
@@ -151,5 +220,8 @@ module.exports = {
   deleteaUser,
   updatedUser,
   handleRefreshToken,
-  logout
+  logout,
+  updatePassword,
+  forgotPassword,
+  resetPassword
 };
