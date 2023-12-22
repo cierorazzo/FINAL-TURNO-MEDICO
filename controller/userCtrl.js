@@ -163,7 +163,10 @@ const logout = asyncHandler(async (req, res) => {
   res.sendStatus(204);
 });
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 57f3810ffeba64d181a8b882db535cdaa22f73e0
 module.exports = {
   createUser,
   loginUserCtrl,
