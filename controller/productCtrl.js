@@ -265,7 +265,22 @@ const cancelFromWishlist = asyncHandler(async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor." });
   }
 });
-
+  const getCancellationHistory = asyncHandler(async (req, res) => {
+    const { _id } = req.user;
+  
+    try {
+      const user = await User.findById(_id);
+      if (user) {
+        const userCancellationHistory = user.cancellationHistory || [];
+        res.json(userCancellationHistory);
+      } else {
+        res.status(404).json({ error: 'Usuario no encontrado.' });
+      }
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Error interno del servidor.' });
+    }
+  });
 module.exports = {
   createProduct,
   updateProduct,
@@ -273,5 +288,6 @@ module.exports = {
   getaProduct,
   getAllProduct,
   addToWishlist,
-  cancelFromWishlist
+  cancelFromWishlist,
+  getCancellationHistory
 };
