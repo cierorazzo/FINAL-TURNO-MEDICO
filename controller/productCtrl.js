@@ -274,4 +274,4 @@ module.exports = {
   getAllProduct,
   addToWishlist,
   cancelFromWishlist
-}
+};

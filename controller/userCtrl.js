@@ -1,9 +1,11 @@
+const mongoose = require("mongoose")
 const User = require("../models/userModel");
 const asyncHandler = require("express-async-handler");
 const { generateToken } = require("../config/jwtToken.js");
 const validateMongoDbId = require("../utils/validateMongodbId.js");
 const { generateRefreshToken } = require("../config/refreshtoken.js");
 const jwt = require("jsonwebtoken");
+
 
 const createUser = asyncHandler(async (req, res) => {
   const email = req.body.email;
@@ -65,14 +67,20 @@ const getallUser = asyncHandler(async (req, res) => {
 });
 const getaUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  validateMongoDbId(id);
   try {
+    validateMongoDbId(id)
     const getaUser = await User.findById(id);
+    
+    if (!getaUser) {
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+
     res.json({
       getaUser,
     });
   } catch (error) {
-    throw new Error(error);
+    console.error(error); 
+    res.status(500).json({ error: "Error interno del servidor." });
   }
 });
 const deleteaUser = asyncHandler(async (req, res) => {
@@ -113,34 +121,6 @@ const loginUserCtrl = asyncHandler(async (req, res) => {
     throw new Error("Credencial inválida.");
   }
 });
-const loginAdmin = asyncHandler(async(req,res)=>{
-  const {email, password} = req.body
-  const findAdmin = await User.findOne({email})
-  if (findAdmin.role !== "admin") throw new Error("No estás autorizado.")
-  if ( findAdmin && (await findAdmin.isPasswordMatched(password))) {
-    const refreshToken = await generateRefreshToken (findAdmin?._id)
-    const updateuser = await User.findByIdAndUpdate(
-      findAdmin.id,
-      {
-        refreshToken: refreshToken,
-      },
-      { new: true}
-    )
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      maxAge: 72* 60 *60 *1000,
-    })
-    res.json({
-      _id: findAdmin?._id,
-      firstname: findAdmin?.firstname,
-      lastname: findAdmin?.lastname,
-      email: findAdmin?.email,
-      mobile: findAdmin?.mobile,
-      token: generateToken(findAdmin?._id),
-    })
-  }else{
-    throw new Error (" Credencial inválida.")
-  }})
 const logout = asyncHandler(async (req, res) => {
   const cookie = req.cookies;
   if (!cookie?.refreshToken)
@@ -166,7 +146,6 @@ const logout = asyncHandler(async (req, res) => {
 module.exports = {
   createUser,
   loginUserCtrl,
-  loginAdmin,
   getallUser,
   getaUser,
   deleteaUser,
