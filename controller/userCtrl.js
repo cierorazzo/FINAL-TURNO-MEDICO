@@ -65,7 +65,7 @@ const getallUser = asyncHandler(async (req, res) => {
 });
 const getaUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  validateMongoDbId();
+  validateMongoDbId(id);
   try {
     const getaUser = await User.findById(id);
     res.json({
@@ -77,8 +77,8 @@ const getaUser = asyncHandler(async (req, res) => {
 });
 const deleteaUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  validateMongoDbId();
   try {
+    validateMongoDbId(id);
     const deleteUser = await User.findByIdAndDelete(id);
     res.json({
       deleteUser,
@@ -113,6 +113,34 @@ const loginUserCtrl = asyncHandler(async (req, res) => {
     throw new Error("Credencial inválida.");
   }
 });
+const loginAdmin = asyncHandler(async(req,res)=>{
+  const {email, password} = req.body
+  const findAdmin = await User.findOne({email})
+  if (findAdmin.role !== "admin") throw new Error("No estás autorizado.")
+  if ( findAdmin && (await findAdmin.isPasswordMatched(password))) {
+    const refreshToken = await generateRefreshToken (findAdmin?._id)
+    const updateuser = await User.findByIdAndUpdate(
+      findAdmin.id,
+      {
+        refreshToken: refreshToken,
+      },
+      { new: true}
+    )
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      maxAge: 72* 60 *60 *1000,
+    })
+    res.json({
+      _id: findAdmin?._id,
+      firstname: findAdmin?.firstname,
+      lastname: findAdmin?.lastname,
+      email: findAdmin?.email,
+      mobile: findAdmin?.mobile,
+      token: generateToken(findAdmin?._id),
+    })
+  }else{
+    throw new Error (" Credencial inválida.")
+  }})
 const logout = asyncHandler(async (req, res) => {
   const cookie = req.cookies;
   if (!cookie?.refreshToken)
@@ -134,13 +162,16 @@ const logout = asyncHandler(async (req, res) => {
   });
   res.sendStatus(204);
 });
+
+
 module.exports = {
   createUser,
   loginUserCtrl,
+  loginAdmin,
   getallUser,
   getaUser,
   deleteaUser,
   updatedUser,
   handleRefreshToken,
-  logout,
+  logout
 };
