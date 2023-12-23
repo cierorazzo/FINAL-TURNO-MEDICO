@@ -1,3 +1,4 @@
+const Product = require("../models/productModel.js")
 const nodemailer = require("nodemailer");
 const mongoose = require("mongoose");
 const User = require("../models/userModel");
@@ -212,6 +213,7 @@ const resetPassword = asyncHandler(async(req, res)=> {
   await user.save()
   res.json(user)
 })
+
 module.exports = {
   createUser,
   loginUserCtrl,
@@ -223,5 +225,5 @@ module.exports = {
   logout,
   updatePassword,
   forgotPassword,
-  resetPassword
+  resetPassword,
 };

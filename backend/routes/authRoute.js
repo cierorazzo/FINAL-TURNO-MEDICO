@@ -14,5 +14,4 @@ router.put("/edit-user", authMiddleware, updatedUser);
 router.put("/password", authMiddleware, updatePassword)
 router.post("/password-forgot", forgotPassword);
 router.put("/reset-password/:token", resetPassword);
-
 module.exports = router;
