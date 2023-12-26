@@ -1,4 +1,3 @@
-const Product = require("../models/productModel.js")
 const nodemailer = require("nodemailer");
 const mongoose = require("mongoose");
 const User = require("../models/userModel");
@@ -8,7 +7,6 @@ const validateMongoDbId = require("../utils/validateMongodbId.js");
 const { generateRefreshToken } = require("../config/refreshtoken.js");
 const crypto = require("crypto")
 const jwt = require("jsonwebtoken");
-
 
 
 const createUser = asyncHandler(async (req, res) => {
@@ -225,5 +223,5 @@ module.exports = {
   logout,
   updatePassword,
   forgotPassword,
-  resetPassword,
+  resetPassword
 };
